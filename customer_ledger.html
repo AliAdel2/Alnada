@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كشف حساب عميل - Warchat Pro</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --bg-dark: #0d1117; --glass: rgba(255,255,255,0.05); }
+        body { background: var(--bg-dark); font-family: 'Cairo', sans-serif; color: #c9d1d9; padding: 1px; }
+        .glass-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 15px; }
+        .stat-box { border-radius: 12px; padding: 10px; text-align: center; }
+        .debt-alert { background: rgba(255, 77, 77, 0.1); border: 1px solid #ff4d4d; color: #ff4d4d; }
+        .invoice-row { border-right: 4px solid #58a6ff; background: rgba(88, 166, 255, 0.03); }
+        .payment-row { border-right: 4px solid #3fb950; background: rgba(63, 185, 80, 0.03); }
+        .form-control { background: rgba(0,0,0,0.2) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #fff !important; }
+        .search-results { position: absolute; width: 100%; z-index: 100; background: #1c2128; border: 1px solid #58a6ff; border-radius: 8px; max-height: 200px; overflow-y: auto; }
+        .search-item { padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .search-item:hover { background: #58a6ff; color: white; }
+        .table { color: #c9d1d9; border-color: rgba(255,255,255,0.05); }
+        th, td { vertical-align:middle; white-space:nowrap; padding: 12px 8px !important; }
+        tr { transition: 0.3s; }
+        .indent-pay { padding-right: 25px !important; font-size: 0.85rem; color: #3fb950; }
+        @media print {
+            .btn, .glass-card:not(.stats-container), #custSearch, label { display: none !important; }
+            body { background: white; color: black; }
+            .glass-card { border: 1px solid #ccc; background: none; color: black; }
+            .table { color: black; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container py-2">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0 text-info"><i class="fas fa-file-invoice-dollar me-2"></i> كشف حساب العملاء</h5>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-info btn-sm" onclick="window.print()"><i class="fas fa-print"></i></button>
+            <a href="index.html" class="btn btn-outline-light btn-sm">الرئيسية</a>
+        </div>
+    </div>
+
+    <div class="glass-card position-relative">
+        <label class="small opacity-50 mb-2">البحث عن عميل</label>
+        <div class="input-group">
+            <span class="input-group-text bg-transparent border-secondary border-opacity-25 text-secondary"><i class="fas fa-search"></i></span>
+            <input type="text" id="custSearch" class="form-control" placeholder="اسم العميل أو الموبايل..." oninput="searchCustomer()">
+        </div>
+        <div id="results" class="search-results d-none"></div>
+    </div>
+
+    <div id="ledgerContent" class="d-none">
+        <div class="row g-2 mb-3 stats-container">
+            <div class="col-4">
+                <div class="glass-card stat-box">
+                    <small class="d-block opacity-50">إجمالي المسحوبات</small>
+                    <span id="totalWithdraw" class="fw-bold fs-5">0</span>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="glass-card stat-box">
+                    <small class="d-block opacity-50 text-success">إجمالي المدفوعات</small>
+                    <span id="totalPaid" class="fw-bold text-success fs-5">0</span>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="glass-card stat-box debt-alert">
+                    <small class="d-block opacity-50 text-white">المديونية الحالية</small>
+                    <span id="currentDebt" class="fw-bold fs-5">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card border-success border-opacity-25">
+            <h6 class="small fw-bold mb-3 text-success"><i class="fas fa-hand-holding-usd me-1"></i> تسجيل تحصيل نقدية (تحت الحساب)</h6>
+            <div class="row g-2">
+                <div class="col-4">
+                    <input type="number" id="payAmount" class="form-control" placeholder="المبلغ">
+                </div>
+                <div class="col-5">
+                    <input type="text" id="payNote" class="form-control" placeholder="بيان الدفعة...">
+                </div>
+                <div class="col-3">
+                    <button class="btn btn-success w-100 fw-bold" onclick="savePayment()">حفظ</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card p-0 overflow-hidden">
+            <div class="p-3 border-bottom border-white border-opacity-10 bg-white bg-opacity-5">
+                <h6 class="m-0 small fw-bold"><i class="fas fa-history me-1 text-info"></i> سجل الحركات المالية</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover m-0 align-middle">
+                    <thead>
+                        <tr class="opacity-50 small">
+                            <th width="15%">التاريخ</th>
+                            <th>البيان والوصف</th>
+                            <th class="text-start" width="20%">المبلغ (EGP)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledgerBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+  apiKey: "AIzaSyBUcS0TU4hE2pybNJTajWYRI0G0z-cKqdM",
+  authDomain: "hamadaapp-e9fe0.firebaseapp.com",
+  projectId: "hamadaapp-e9fe0",
+  storageBucket: "hamadaapp-e9fe0.firebasestorage.app",
+  messagingSenderId: "769531497692",
+  appId: "1:769531497692:web:99a0f755c8b5336b6e7819",
+  measurementId: "G-VE59WL203K"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let currentCust = null;
+
+    window.searchCustomer = async function() {
+        const val = document.getElementById('custSearch').value;
+        const resDiv = document.getElementById('results');
+        if(val.length < 1) { resDiv.classList.add('d-none'); return; }
+        
+        const snap = await getDocs(collection(db, "customers"));
+        resDiv.innerHTML = '';
+        let found = false;
+        snap.forEach(doc => {
+            const data = doc.data();
+            if(data.name.includes(val) || (data.phone && data.phone.includes(val))) {
+                found = true;
+                resDiv.classList.remove('d-none');
+                const d = document.createElement('div');
+                d.className = 'search-item';
+                d.innerHTML = `<i class="fas fa-user-circle me-2 opacity-50"></i> ${data.name} <small class="float-start opacity-50">${data.phone || ''}</small>`;
+                d.onclick = () => loadLedger(data.name, data.phone);
+                resDiv.appendChild(d);
+            }
+        });
+        if(!found) resDiv.classList.add('d-none');
+    }
+
+    async function loadLedger(name, phone) {
+        currentCust = { name, phone };
+        document.getElementById('custSearch').value = name;
+        document.getElementById('results').classList.add('d-none');
+        document.getElementById('ledgerContent').classList.remove('d-none');
+
+        const qInv = query(collection(db, "invoices"), where("customer.phone", "==", phone));
+        const invSnap = await getDocs(qInv);
+        
+        const qPay = query(collection(db, "payments"), where("phone", "==", phone));
+        const paySnap = await getDocs(qPay);
+
+        let actions = [];
+        let totalWithdraw = 0;
+        let totalPaid = 0;
+
+        invSnap.forEach(doc => {
+            const d = doc.data();
+            const invTotal = parseFloat(d.total) || 0;
+            const invPaid = parseFloat(d.paid) || 0;
+            
+            totalWithdraw += invTotal;
+            totalPaid += invPaid;
+
+            actions.push({ 
+                date: d.timestamp?.toDate(), 
+                type: `فاتورة صيانة #${doc.id.slice(-4)}`, 
+                amount: invTotal, 
+                class: 'invoice-row fw-bold text-white' 
+            });
+
+            if(invPaid > 0) {
+                actions.push({ 
+                    date: d.timestamp?.toDate(), 
+                    type: `↳ مدفوع وقت الفاتورة`, 
+                    amount: -invPaid, 
+                    class: 'payment-row indent-pay' 
+                });
+            }
+        });
+
+        paySnap.forEach(doc => {
+            const d = doc.data();
+            const payAmt = parseFloat(d.amount) || 0;
+            totalPaid += payAmt;
+            actions.push({ 
+                date: d.timestamp?.toDate(), 
+                type: `دفعة نقدية خارجية: ${d.note || 'تحصيل من العميل'}`, 
+                amount: -payAmt, 
+                class: 'payment-row text-info fw-bold' 
+            });
+        });
+
+        actions.sort((a, b) => b.date - a.date);
+
+        document.getElementById('totalWithdraw').innerText = totalWithdraw.toLocaleString();
+        document.getElementById('totalPaid').innerText = totalPaid.toLocaleString();
+        document.getElementById('currentDebt').innerText = (totalWithdraw - totalPaid).toLocaleString();
+
+        const body = document.getElementById('ledgerBody');
+        body.innerHTML = '';
+        actions.forEach(a => {
+            body.innerHTML += `
+                <tr class="${a.class}">
+                    <td class="small opacity-75">${a.date ? a.date.toLocaleDateString('ar-EG') : '---'}</td>
+                    <td>${a.type}</td>
+                    <td dir="ltr" class="text-start fw-bold ${a.amount > 0 ? 'text-white' : 'text-success'}">
+                        ${a.amount > 0 ? '+' : ''}${a.amount.toLocaleString()}
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    window.savePayment = async function() {
+        const amtInput = document.getElementById('payAmount').value;
+        const amount = parseFloat(amtInput) || 0;
+        const note = document.getElementById('payNote').value;
+        
+        if(amount <= 0 || !currentCust) { alert("أدخل مبلغ صحيح"); return; }
+
+        try {
+            await addDoc(collection(db, "payments"), {
+                name: currentCust.name,
+                phone: currentCust.phone,
+                amount: amount,
+                note: note,
+                timestamp: serverTimestamp()
+            });
+            alert("تم الحفظ بنجاح ✅");
+            loadLedger(currentCust.name, currentCust.phone);
+            document.getElementById('payAmount').value = '';
+            document.getElementById('payNote').value = '';
+        } catch(e) { console.error(e); }
+    }
+</script>
+</body>
+</html>
